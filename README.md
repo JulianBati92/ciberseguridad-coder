@@ -28,7 +28,7 @@ Esta configuración resulta adecuada para futuras prácticas de ciberseguridad, 
 
 ### Evidencia de configuración
 
-![Configuración de Red Interna](red-interna.png)
+![Configuración de Red Interna](Evidencias/red-interna.png)
 
 ## ¿Por qué no utilizar modo Puente (Bridged)?
 
@@ -46,7 +46,7 @@ El objetivo del snapshot es conservar un punto de restauración correspondiente 
 
 ### Evidencia del snapshot
 
-![Snapshot Instalación Base Limpia](snapshot-base-limpia.png)
+![Snapshot Instalación Base Limpia](Evidencias/snapshot-base-limpia.png)
 
 ## Conclusión
 
