@@ -119,3 +119,234 @@ La conectividad externa se utiliza únicamente cuando es necesaria para tareas d
 ## Reporte en PDF
 
 Como respaldo adicional, el repositorio puede incluir el archivo **`Reporte_Tecnico_Laboratorio_JulianBatistutti.pdf`**, que reúne el reporte y las evidencias del checkpoint.
+
+---
+
+# Checkpoint: Análisis de tráfico e identificación de protocolos inseguros
+
+## Introducción
+
+En esta práctica se realizó una captura y análisis de tráfico de red utilizando Wireshark sobre la interfaz Ethernet del equipo anfitrión.
+
+El objetivo fue identificar distintos protocolos presentes durante una navegación web, analizar las diferencias entre comunicaciones HTTP y HTTPS, observar el proceso de resolución DNS e identificar el establecimiento de una conexión TCP mediante el Three-Way Handshake.
+
+La captura fue realizada generando tráfico hacia `http://neverssl.com` y otros servicios HTTPS.
+
+---
+
+## 1. Inventario de protocolos identificados
+
+Durante la captura se identificaron distintos protocolos correspondientes a diferentes capas de comunicación.
+
+| Protocolo | Función | Seguridad |
+|---|---|---|
+| DNS | Resolución de nombres de dominio a direcciones IP | Sin cifrado en DNS tradicional |
+| TCP | Transporte confiable y orientado a conexión | No cifra por sí mismo |
+| HTTP | Transferencia de contenido web | Inseguro |
+| TLS | Cifrado de las comunicaciones | Seguro cuando está correctamente configurado |
+| HTTPS | HTTP protegido mediante TLS | Seguro frente a lectura directa del tráfico |
+
+La captura permitió observar cómo estos protocolos trabajan conjuntamente durante una navegación web.
+
+---
+
+## 2. Análisis DNS
+
+Se utilizó el siguiente filtro de Wireshark:
+
+```text
+dns.qry.name contains "neverssl"
+```
+
+La consulta permitió identificar la resolución del dominio:
+
+- **Dominio:** `neverssl.com`
+- **Dirección IPv4 obtenida:** `34.223.124.45`
+- **Tipo de registro:** A
+- También se observó una consulta de tipo AAAA correspondiente a IPv6.
+
+### Evidencia
+
+![Consulta DNS de neverssl.com](Evidencias/dns-neverssl.png)
+
+DNS permite que el navegador obtenga la dirección IP correspondiente a un nombre de dominio antes de iniciar la comunicación con el servidor.
+
+---
+
+## 3. Análisis de tráfico HTTP
+
+Para analizar las comunicaciones HTTP se utilizó:
+
+```text
+http
+```
+
+Durante la navegación hacia NeverSSL fue posible observar directamente solicitudes HTTP, incluyendo peticiones mediante el método `GET`.
+
+En la captura se observa tráfico utilizando el **puerto TCP 80**, correspondiente a HTTP.
+
+### Evidencia
+
+![Tráfico HTTP capturado con Wireshark](Evidencias/http-neverssl.png)
+
+Una característica importante observada es que Wireshark permite visualizar información de la solicitud, incluyendo elementos como:
+
+- método HTTP;
+- URI solicitada;
+- encabezados;
+- Host;
+- información del navegador.
+
+Esto demuestra uno de los principales problemas de HTTP: **la información no está protegida mediante cifrado**.
+
+Un atacante con capacidad para interceptar el tráfico podría potencialmente leer o modificar información transmitida mediante HTTP.
+
+---
+
+## 4. Análisis HTTPS y TLS
+
+Para identificar comunicaciones cifradas se utilizó:
+
+```text
+tls
+```
+
+Durante la captura se observaron comunicaciones utilizando **TLS 1.2 y TLS 1.3**.
+
+### Evidencia
+
+![Tráfico HTTPS y TLS](Evidencias/https-tls.png)
+
+A diferencia del tráfico HTTP, en las conexiones protegidas mediante TLS el contenido de aplicación aparece en Wireshark principalmente como:
+
+```text
+Application Data
+```
+
+Esto ocurre porque los datos se encuentran cifrados.
+
+Por lo tanto, observando únicamente una captura de red no es posible leer directamente el contenido de la página, formularios, credenciales u otra información protegida por la sesión TLS.
+
+HTTPS proporciona principalmente:
+
+- **Confidencialidad:** dificulta que terceros puedan leer la información.
+- **Integridad:** permite detectar modificaciones de los datos durante la comunicación.
+- **Autenticación:** los certificados digitales permiten verificar la identidad del servidor.
+
+---
+
+## 5. Three-Way Handshake de TCP
+
+Para localizar conexiones TCP se utilizó inicialmente:
+
+```text
+tcp.flags.syn == 1
+```
+
+Posteriormente se aisló una conexión mediante su TCP Stream.
+
+En la captura se identificó el establecimiento de una conexión entre:
+
+```text
+192.168.1.66 → 52.22.224.129:443
+```
+
+### Evidencia
+
+![Three-Way Handshake TCP](Evidencias/tcp-three-way-handshake.png)
+
+Los tres paquetes identificados fueron:
+
+### 1. SYN
+
+```text
+192.168.1.66 → 52.22.224.129
+20368 → 443 [SYN]
+```
+
+El cliente solicita iniciar una conexión TCP con el servidor.
+
+### 2. SYN, ACK
+
+```text
+52.22.224.129 → 192.168.1.66
+443 → 20368 [SYN, ACK]
+```
+
+El servidor confirma la solicitud y comunica que está preparado para establecer la conexión.
+
+### 3. ACK
+
+```text
+192.168.1.66 → 52.22.224.129
+20368 → 443 [ACK]
+```
+
+El cliente confirma la respuesta del servidor.
+
+Luego de estos tres pasos, la conexión TCP queda establecida.
+
+En la misma captura se observa posteriormente un **TLSv1.3 Client Hello**, mostrando que después de establecer la conexión TCP comienza la negociación TLS correspondiente a la comunicación segura.
+
+---
+
+## 6. Análisis de seguridad
+
+### ¿Por qué HTTP es considerado inseguro?
+
+HTTP transmite la información sin proporcionar cifrado a nivel de aplicación. Esto permite que un tercero con acceso al tráfico pueda inspeccionar información enviada entre el cliente y el servidor.
+
+Por este motivo no deberían transmitirse credenciales, datos personales u otra información sensible mediante HTTP.
+
+### ¿Qué información pudo observarse en HTTP?
+
+Durante la captura fue posible identificar información como:
+
+- método utilizado;
+- Host;
+- URI;
+- encabezados HTTP;
+- información del cliente;
+- códigos de respuesta.
+
+La posibilidad de observar estos datos directamente demuestra la falta de confidencialidad de HTTP.
+
+### ¿Qué ventajas ofrece HTTPS?
+
+HTTPS utiliza TLS para proteger la comunicación entre el navegador y el servidor.
+
+Esto proporciona confidencialidad e integridad a los datos y permite autenticar al servidor mediante certificados digitales.
+
+Aunque un analista de red todavía puede observar determinados metadatos de la conexión, el contenido de aplicación queda protegido mediante cifrado.
+
+### ¿Cómo protegería una VPN este tipo de comunicación?
+
+Una VPN crea un túnel cifrado entre el dispositivo y el servidor VPN.
+
+Esto impide que dispositivos intermedios de la red local puedan inspeccionar directamente el tráfico transportado dentro del túnel.
+
+Sin embargo, una VPN no reemplaza HTTPS. La utilización conjunta de **HTTPS + VPN** proporciona protección en diferentes partes de la comunicación.
+
+---
+
+## 7. Conclusiones
+
+La práctica permitió analizar de forma directa el funcionamiento de diferentes protocolos utilizados diariamente en una red.
+
+Mediante Wireshark fue posible observar la resolución DNS, solicitudes HTTP sin cifrar, comunicaciones protegidas mediante TLS y el establecimiento de conexiones TCP mediante el Three-Way Handshake.
+
+La comparación entre HTTP y HTTPS permitió comprobar la importancia del cifrado en las comunicaciones modernas. Mientras HTTP permite inspeccionar directamente gran parte de la información intercambiada, HTTPS utiliza TLS para proteger el contenido.
+
+Como buenas prácticas de seguridad se recomienda:
+
+- utilizar HTTPS siempre que sea posible;
+- evitar transmitir información sensible mediante HTTP;
+- mantener navegadores y sistemas actualizados;
+- utilizar redes confiables;
+- considerar una VPN cuando se utilizan redes públicas o no confiables;
+- analizar periódicamente el tráfico de red ante comportamientos sospechosos.
+
+---
+
+**Autor:** Julián Martín Batistutti  
+**Curso:** Ciberseguridad - Coderhouse
